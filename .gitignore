@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.log
+.venv/
+runtime/
+.env
+.env.*
+!.env.example
+node_modules/
+playwright-report/
+test-results/
+*.zip
+.DS_Store
+Thumbs.db

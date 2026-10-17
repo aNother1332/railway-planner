@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="选择行程、设置偏好，查询火车中转路线。">
+  <title>转个弯 · 火车中转规划</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="site-header"><button type="button" class="brand" data-step="1">转个弯</button><button type="button" class="text-button" id="history-btn">最近查询</button></header>
+  <nav class="step-nav" aria-label="行程规划步骤"><ol>
+    <li><button type="button" data-step="1" aria-current="step"><span>1</span>行程</button></li>
+    <li><button type="button" data-step="2"><span>2</span>偏好</button></li>
+    <li><button type="button" data-step="3" disabled><span>3</span>查询</button></li>
+    <li><button type="button" data-step="4" disabled><span>4</span>路线</button></li>
+  </ol></nav>
+  <main class="wizard">
+    <form id="search-form" novalidate>
+      <section class="step-page" id="step-1" aria-labelledby="trip-heading">
+        <div class="page-heading"><h1 id="trip-heading" tabindex="-1">欢迎，开始规划行程</h1><p>选择出发地、目的地和出发日期。</p></div>
+        <div class="station-row">
+          <div class="field autocomplete"><label for="origin">出发地</label><input id="origin" name="origin" required placeholder="城市或车站" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="origin-list" aria-expanded="false"><ul class="suggestions" id="origin-list" role="listbox" hidden></ul></div>
+          <button class="swap-button" type="button" id="swap" aria-label="交换出发地和目的地">⇄</button>
+          <div class="field autocomplete"><label for="destination">目的地</label><input id="destination" name="destination" required placeholder="城市或车站" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="destination-list" aria-expanded="false"><ul class="suggestions" id="destination-list" role="listbox" hidden></ul></div>
+        </div>
+        <div class="field"><label for="date">出发日期</label><input id="date" name="date" type="date" required></div>
+        <p class="error-message" id="trip-error" role="alert" hidden></p>
+        <div class="page-actions"><button type="button" class="primary-button" id="next-preferences">下一步：选择偏好</button></div>
+      </section>
+      <section class="step-page" id="step-2" aria-labelledby="preferences-heading" hidden>
+        <div class="page-heading"><h1 id="preferences-heading" tabindex="-1">选择出行偏好</h1></div>
+        <div class="trip-summary"><span data-trip-summary></span><button type="button" class="text-button" data-step="1">修改行程</button></div>
+        <p class="muted" id="editing-notice" hidden>修改条件将停止当前查询。</p>
+        <fieldset class="mode-field"><legend>更在意什么</legend><div class="mode-grid" role="group" aria-label="行程偏好">
+          <button type="button" class="mode active" data-mode="balanced" aria-pressed="true">均衡推荐</button>
+          <button type="button" class="mode" data-mode="price" aria-pressed="false">价格优先</button>
+          <button type="button" class="mode" data-mode="duration" aria-pressed="false">总耗时短</button>
+          <button type="button" class="mode" data-mode="sleeper" aria-pressed="false">夜间卧铺</button>
+        </div><input type="hidden" id="mode" value="balanced"></fieldset>
+        <div class="row two time-options"><div class="field"><label for="time">最早出发时间</label><input id="time" name="time" type="time" value="08:00" required></div><div class="field"><label for="latest">最晚到达时间</label><input id="latest" name="latest" type="datetime-local" required></div></div>
+        <div id="sleep-options" hidden><div class="field"><label for="min-sleep">夜间卧铺可休息时段至少</label><select id="min-sleep"><option value="240">4 小时</option><option value="300">5 小时</option><option value="360" selected>6 小时</option><option value="420">7 小时</option><option value="480">8 小时</option></select><p class="field-note">按 22:00—次日 08:00 内的卧铺乘车时段计算。</p></div>
+            <div class="field"><label for="early-policy">凌晨换乘偏好</label><select id="early-policy"><option value="prefer">尽量避开（卧铺可 5 点后到站）</option><option value="strict">严格避开 00:00—06:00</option><option value="allow">不限制凌晨换乘</option></select></div>
+</div>
+          <details id="preferences"><summary>高级选项 <span id="advanced-count">未设置额外条件</span><span class="disclosure">展开</span></summary><div class="advanced">
+            <div class="row two"><div class="field"><label for="depart-days">连续可出发天数</label><select id="depart-days"><option value="1">仅所选当天</option><option value="2">当天及次日</option><option value="3">连续 3 天</option></select></div><div class="field"><label for="budget">票价预算 / 元</label><input id="budget" type="number" min="1" max="100000" step="0.5" inputmode="decimal" placeholder="不限"></div></div>
+            <div class="field autocomplete"><label for="via">中转城市或车站</label><input id="via" placeholder="例如：武汉" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="via-list" aria-expanded="false"><ul class="suggestions" id="via-list" role="listbox" hidden></ul></div>
+            <div class="field"><label class="sr-only" for="via-mode">中转城市条件</label><select id="via-mode"><option value="prefer">优先搜索这里，也接受其他城市</option><option value="must">必须在这里中转</option></select></div>
+            <div class="row two"><div class="field"><label for="min-transfer">最短换乘 / 分钟</label><input id="min-transfer" type="number" min="20" max="600" value="45"></div><div class="field"><label for="max-transfer">最长等待 / 分钟</label><input id="max-transfer" type="number" min="20" max="1440" value="360"></div></div>
+            <details class="stay-details"><summary>想在中转城市停一会儿？</summary><p>填写后作为停留时长限制，替代最长等待设置。</p><div class="row two"><div class="field"><label for="stay-min">至少停留 / 分钟</label><input id="stay-min" type="number" min="0" max="1440" placeholder="例如 240"></div><div class="field"><label for="stay-max">最多停留 / 分钟</label><input id="stay-max" type="number" min="0" max="1440" placeholder="例如 480"></div></div></details>
+            <fieldset class="seat-field"><legend>接受的席别</legend><div class="seat-options">
+              <label><input type="checkbox" name="seats" value="O" checked>二等座</label><label><input type="checkbox" name="seats" value="3" checked>硬卧</label><label><input type="checkbox" name="seats" value="4" checked>软卧</label><label><input type="checkbox" name="seats" value="F" checked>动卧</label><label><input type="checkbox" name="seats" value="I" checked>一等卧</label><label><input type="checkbox" name="seats" value="J" checked>二等卧</label><label><input type="checkbox" name="seats" value="M">一等座</label><label><input type="checkbox" name="seats" value="9">商务座</label><label><input type="checkbox" name="seats" value="1">硬座</label><label><input type="checkbox" name="seats" value="WZ">无座</label>
+            </div></fieldset>
+            <div class="field"><label for="exclude">避开这些中转城市</label><input id="exclude" placeholder="多个城市用逗号分隔"></div>
+            <label class="check-row"><input id="cross" type="checkbox"><span>接受同城换站<small>至少预留 120 分钟，市内交通需自行核实</small></span></label>
+
+            <label class="check-row"><input id="unavailable" type="checkbox"><span>也看无票或状态待确认的路线<small>作为备选参考，与全程有票的方案区分</small></span></label>
+          </div></details>
+
+        <p id="form-error" class="error-message" role="alert" hidden></p>
+        <div class="page-actions"><button type="button" class="secondary-button" data-step="1">上一步</button><button class="primary-button" id="search-button" type="submit">开始寻找路线</button></div>
+      </section>
+    </form>
+    <section class="step-page" id="step-3" aria-labelledby="progress-heading" hidden>
+      <div class="page-heading"><h1 id="progress-heading" tabindex="-1">正在寻找路线</h1></div>
+      <div class="trip-summary"><span data-search-summary></span></div>
+      <div id="loading" class="progress-content" role="status"><div class="progress-label"><strong id="progress-message">准备查询</strong><span id="progress-percent">0%</span></div><progress id="progress" max="100" value="0"></progress><ol class="query-stages"><li>查询列车</li><li>组合路线</li><li>核验票价</li></ol></div>
+      <p id="progress-note" class="muted">按实际乘车日期查询余票与票价。</p>
+      <p id="progress-error" class="error-message" role="alert" hidden></p>
+      <div class="page-actions"><button type="button" class="secondary-button" data-step="2">返回偏好</button><button type="button" class="text-button" id="cancel-button">停止查询</button><button type="button" class="primary-button" id="retry-button" hidden>重新查询</button><button type="button" class="primary-button" id="view-results" data-step="4" hidden>查看路线</button></div>
+    </section>
+    <section class="step-page results-page" id="step-4" aria-labelledby="results-heading" hidden>
+      <div class="page-heading result-heading"><div><h1 id="results-heading" tabindex="-1">路线结果</h1><p id="result-summary"></p></div><div class="result-actions"><button type="button" class="text-button" id="share">分享条件</button><button type="button" class="secondary-button" data-step="2">修改条件</button></div></div>
+      <div id="active-filters" class="filter-tags" hidden></div>
+      <div id="results-content">
+        <div class="list-toolbar"><p id="result-count"></p><label for="sort" class="sr-only">路线排序</label><select id="sort"><option value="balanced">均衡推荐</option><option value="price">已核验价格最低</option><option value="duration">总耗时最短</option><option value="arrival">最早到达</option><option value="sleeper">卧铺达标 · 少占白天</option></select></div>
+        <div id="route-list" class="route-list" aria-live="polite"></div>
+        <div id="empty-state" class="empty-state" hidden><h2>未找到符合条件的路线</h2><p id="empty-hint"></p><button type="button" class="secondary-button" id="relax">修改偏好</button></div>
+        <details class="scope-box" id="scope-box"><summary><span id="scope-summary">查询范围与数据说明</span></summary><div id="scope-content"></div></details>
+      </div>
+    </section>
+  </main>
+  <div id="compare-bar" class="compare-bar" hidden><span>已选 <b id="compare-count">0</b> 条路线</span><button class="text-button" id="clear-compare">清空</button><button class="primary-button" id="open-compare">对比路线</button></div>
+  <dialog id="detail-dialog"><div class="dialog-heading"><h2 id="dialog-title">路线对比</h2><button type="button" class="icon-button close-dialog" aria-label="关闭">×</button></div><div id="dialog-content"></div></dialog>
+  <dialog id="history-dialog"><div class="dialog-heading"><h2>最近查询</h2><button type="button" class="icon-button close-dialog" aria-label="关闭">×</button></div><p class="muted">仅保存在这台设备。恢复条件后需重新查询。</p><div id="history-list"></div><button class="text-button" id="clear-history">清除记录</button></dialog>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>
