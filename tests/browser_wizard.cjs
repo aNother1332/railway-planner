@@ -123,7 +123,7 @@ const out=process.env.RAIL_SCREENSHOT_DIR;
   await page.setViewportSize({width:390,height:844});
   for(const n of [1,2,3,4]){await nav(n).click();await visible(n);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Horizontal overflow on step '+n);}
   await shot('转个弯-手机版-路线');
-  await page.locator('#history-btn').click();await page.locator('.history-item').first().click();await visible(1);
+  await nav(1).click();await page.locator('#history-btn').click();await page.locator('.history-item').first().click();await visible(1);
   assert.equal(await nav(4).isDisabled(),true);
   // Existing shared conditions restore to step one without starting a request.
   const previousPosts=posts;

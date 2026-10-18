@@ -168,7 +168,7 @@
     const line=group.selectAll('path').data(paths).join(enter=>enter.append('path').attr('class',preview?'map-preview-route':'map-route')).attr('d',r=>curve(r.a,r.b)).attr('pathLength',1).attr('marker-end',preview?'url(#preview-arrow)':'url(#route-arrow)');
     // Explicit screen-space arrowhead also works when a browser scales SVG
     // markers unexpectedly on paths with normalized pathLength.
-    group.selectAll('polygon').data(paths).join('polygon').attr('fill','#286441').attr('pointer-events','none').attr('points',()=>{
+    group.selectAll('polygon').data(paths).join('polygon').attr('fill','#315970').attr('pointer-events','none').attr('points',()=>{
       const node=line.node(),length=node.getTotalLength();
       if(length<2)return '';
       const end=node.getPointAtLength(length),back=node.getPointAtLength(Math.max(0,length-12));
@@ -241,7 +241,7 @@
     nodes.on('click',(event,p)=>{event.stopPropagation();if(p.kind==='city')focusCity(M.cityById.get(p.id));else pickStation(M.stationByCode.get(p.code));});
     nodes.on('keydown',(event,p)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();if(p.kind==='city')focusCity(M.cityById.get(p.id));else pickStation(M.stationByCode.get(p.code));}});
     M.svg.select('.map-geography').attr('transform',M.transform);
-    M.svg.selectAll('.region-shape').classed('focused',f=>f.properties.id===M.focus?.id).attr('display',f=>k>3 || f.properties.id===M.focus?.id?null:'none');
+    M.svg.selectAll('.region-shape').classed('focused',f=>f.properties.id===M.focus?.id).attr('display',f=>!M.selectionComplete && (k>3 || f.properties.id===M.focus?.id)?null:'none');
     drawRoute(M.svg.select('.map-route-layer'),screen);
     const endpointLabels=ends.map((e,i)=>e?{e,i,p:screen(e.coord)}:null).filter(Boolean);
     M.svg.select('.map-endpoints').selectAll('text').data(endpointLabels).join('text').attr('class','map-end-label').attr('text-anchor',d=>d.p[0]>M.width/2?'end':'start').attr('x',d=>d.p[0]+(d.p[0]>M.width/2?-9:9)).attr('y',d=>d.p[1]+29).text(d=>(d.i===0?'出发：':'到达：')+d.e.label);
@@ -319,7 +319,7 @@
     M.svg.selectAll('*').remove();
     M.projection=d3.geoMercator().fitExtent([[28,90],[M.width-28,M.height-38]],M.data.provinces);
     const defs=M.svg.append('defs');
-    defs.append('marker').attr('id','route-arrow').attr('viewBox','0 0 10 10').attr('refX',9).attr('refY',5).attr('markerWidth',7).attr('markerHeight',7).attr('orient','auto').append('path').attr('d','M0,0 L10,5 L0,10 Z').attr('fill','#286441');
+    defs.append('marker').attr('id','route-arrow').attr('viewBox','0 0 10 10').attr('refX',9).attr('refY',5).attr('markerWidth',7).attr('markerHeight',7).attr('orient','auto').append('path').attr('d','M0,0 L10,5 L0,10 Z').attr('fill','#315970');
     const geography=M.svg.append('g').attr('class','map-geography');
     const path=d3.geoPath(M.projection);
     geography.selectAll('path.province-shape').data(M.data.provinces.features).join('path').attr('class','province-shape').attr('d',path);
@@ -338,10 +338,18 @@
     if(!M.data || !window.d3)return;
     const svg=d3.select('#map-preview-svg');svg.selectAll('*').remove();
     const p=d3.geoMercator().fitExtent([[24,15],[576,335]],M.data.provinces);
-    svg.append('defs').append('marker').attr('id','preview-arrow').attr('viewBox','0 0 10 10').attr('refX',9).attr('refY',5).attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto').append('path').attr('d','M0,0 L10,5 L0,10 Z').attr('fill','#35744d');
-    svg.append('g').selectAll('path').data(M.data.provinces.features).join('path').attr('d',d3.geoPath(p)).attr('fill','#e9f0e9').attr('stroke','#c1d1c2').attr('stroke-width',.7);
+    const defs=svg.append('defs');
+    const land=defs.append('linearGradient').attr('id','atlas-land').attr('x1','0').attr('y1','0').attr('x2','1').attr('y2','1');
+    land.append('stop').attr('stop-color','#d5e6e0');land.append('stop').attr('offset','1').attr('stop-color','#b7d5e4');
+    defs.append('marker').attr('id','preview-arrow').attr('viewBox','0 0 10 10').attr('refX',9).attr('refY',5).attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto').append('path').attr('d','M0,0 L10,5 L0,10 Z').attr('fill','#507da1');
+    svg.append('g').attr('class','atlas-graticule').append('path').attr('d',d3.geoPath(p)(d3.geoGraticule().step([10,10])()));
+    svg.append('g').attr('class','atlas-relief').attr('transform','translate(0,4)').selectAll('path').data(M.data.provinces.features).join('path').attr('d',d3.geoPath(p));
+    svg.append('g').attr('class','atlas-provinces').selectAll('path').data(M.data.provinces.features).join('path').attr('d',d3.geoPath(p));
+    const compass=svg.append('g').attr('class','atlas-compass').attr('transform','translate(540,55)');
+    compass.append('circle').attr('r',21);compass.append('path').attr('d','M0,-16 L5,8 L0,4 L-5,8 Z');
+    compass.append('text').attr('y',-28).attr('text-anchor','middle').text('N');
     const ends=endpoints().filter(Boolean);
-    svg.append('g').selectAll('circle').data(ends).join('circle').attr('cx',e=>p(e.coord)[0]).attr('cy',e=>p(e.coord)[1]).attr('r',4.5).attr('fill','#24563f');
+    svg.append('g').selectAll('circle').data(ends).join('circle').attr('cx',e=>p(e.coord)[0]).attr('cy',e=>p(e.coord)[1]).attr('r',4.5).attr('fill','#507da1');
     drawRoute(svg.append('g'),p,true);
   }
 
@@ -378,7 +386,7 @@
     const projection=d3.geoMercator().fitExtent([[22,18],[778,418]],M.data.provinces);
     if(svg.select('.query-land').empty()){
       svg.append('g').attr('class','query-land').selectAll('path').data(M.data.provinces.features).join('path').attr('d',d3.geoPath(projection));
-      svg.append('defs').append('marker').attr('id','query-arrow').attr('viewBox','0 0 10 10').attr('refX',9).attr('refY',5).attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto').append('path').attr('d','M0,0 L10,5 L0,10 Z').attr('fill','#286441');
+      svg.append('defs').append('marker').attr('id','query-arrow').attr('viewBox','0 0 10 10').attr('refX',9).attr('refY',5).attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto').append('path').attr('d','M0,0 L10,5 L0,10 Z').attr('fill','#315970');
       svg.append('g').attr('class','query-links');svg.append('g').attr('class','query-dots');
     }
     const ends=queryEnds().filter(Boolean),dots=new Map();

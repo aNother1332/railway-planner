@@ -8,6 +8,15 @@ const duration = value => `${Math.floor(value/60) ? Math.floor(value/60)+'小时
 const state = {step:1,phase:'idle',ready:false,busy:false,result:null,selected:new Set(),expanded:new Set(),job:null,generation:0,payload:null,polling:null};
 let config;
 let toastTimer;
+let keyboardInput=false;
+document.addEventListener('keydown',()=>{keyboardInput=true;},true);
+document.addEventListener('pointerdown',()=>{keyboardInput=false;},true);
+function revealSurface(element) {
+  element.getAnimations().forEach(animation=>animation.cancel());
+  if(keyboardInput || matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  element.animate([{opacity:.5,transform:'translateY(8px)'},{opacity:1,transform:'translateY(0)'}],
+    {duration:220,easing:'cubic-bezier(.23,1,.32,1)'});
+}
 
 function toast(message) {
   $('toast').textContent = message; $('toast').hidden = false;
@@ -226,10 +235,17 @@ function goStep(step,{replace=false,skipValidation=false,fromHistory=false}={}) 
   if(!skipValidation && step>1 && !validateTrip())return;
   if(step===3 && state.phase==='idle'){toast('请先开始查询');return;}
   if(step===4 && !state.result){if(fromHistory)return goStep(2,{replace:true});toast('查询完成后可查看路线');return;}
+  const changed=state.step!==step;
+  document.body.dataset.stage=String(step);
+  const glass=document.querySelector('.glass-selection');
+  glass.style.transition=keyboardInput?'none':'';
+  glass.style.transform=`translateX(${(step-1)*100}%)`;
   state.step=step;
   document.querySelectorAll('.step-page').forEach((page,index)=>page.hidden=index+1!==step);
   document.querySelector('.wizard').classList.toggle('show-results',step===4);
   document.querySelector('.wizard').classList.toggle('show-trip',step===1);
+  document.querySelector('.wizard').classList.toggle('show-query',step===3);
+  if(changed)revealSurface($('step-'+step));
   syncNavigation();
   window.dispatchEvent(new CustomEvent('rail:step',{detail:{step}}));
   if(!fromHistory)writeAddress(replace);
@@ -370,7 +386,7 @@ function renderList() {
     if(!route.available)badges.push('<span class="badge amber">未全程确认有票</span>');
     if(!route.priced)badges.push('<span class="badge amber">价格待确认</span>');
     const opened=state.expanded.has(route.id);
-    return `<article class="route-card" id="route-${esc(route.id)}"><div class="route-main"><div class="route-time"><strong>${fmtTime(route.depart)}</strong><span>${esc(first.from)}</span><small>${fmtDate(route.depart)}</small></div><div class="journey-summary"><strong>${duration(route.duration)}</strong><span>${route.via?esc(route.via)+'中转 · 等待 '+duration(route.wait):'直达'}</span></div><div class="route-time arrival"><strong>${fmtTime(route.arrive)}</strong><span>${esc(last.to)}</span><small>${fmtDate(route.arrive)}</small></div><div class="route-price">${route.priced?'<strong><small>¥</small>'+fmtMoney(route.price_fen)+'</strong>':'<strong class="unknown">待确认</strong>'}<small>成人票合计</small></div></div><div class="route-secondary"><p>${route.segments.map(s=>esc(s.train)+' '+esc(s.seat)).join(' → ')}${route.rest_minutes?' · 夜间卧铺 '+duration(route.rest_minutes):''}</p><div class="route-badges">${badges.join('')}</div></div><div class="route-card-actions"><label class="compare-check"><input type="checkbox" data-compare="${esc(route.id)}" ${state.selected.has(route.id)?'checked':''}>加入对比</label><button type="button" class="text-button" data-detail="${esc(route.id)}" aria-expanded="${opened}" aria-controls="detail-${esc(route.id)}">${opened?'收起详情':'展开详情'}</button></div><div class="route-detail" id="detail-${esc(route.id)}" ${opened?'':'hidden'}>${opened?detailMarkup(route):''}</div></article>`;
+    return `<article class="route-card" id="route-${esc(route.id)}"><div class="route-main"><div class="route-time"><strong>${fmtTime(route.depart)}</strong><span>${esc(first.from)}</span><small>${fmtDate(route.depart)}</small></div><div class="journey-summary"><span class="journey-line" aria-hidden="true">${route.via?'<i></i>':''}</span><strong>${duration(route.duration)}</strong><span>${route.via?esc(route.via)+'中转 · 等待 '+duration(route.wait):'直达'}</span></div><div class="route-time arrival"><strong>${fmtTime(route.arrive)}</strong><span>${esc(last.to)}</span><small>${fmtDate(route.arrive)}</small></div><div class="route-price">${route.priced?'<strong><small>¥</small>'+fmtMoney(route.price_fen)+'</strong>':'<strong class="unknown">待确认</strong>'}<small>成人票合计</small></div></div><div class="route-secondary"><p>${route.segments.map(s=>esc(s.train)+' '+esc(s.seat)).join(' → ')}${route.rest_minutes?' · 夜间卧铺 '+duration(route.rest_minutes):''}</p><div class="route-badges">${badges.join('')}</div></div><div class="route-card-actions"><label class="compare-check"><input type="checkbox" data-compare="${esc(route.id)}" ${state.selected.has(route.id)?'checked':''}>加入对比</label><button type="button" class="text-button" data-detail="${esc(route.id)}" aria-expanded="${opened}" aria-controls="detail-${esc(route.id)}">${opened?'收起详情':'展开详情'}</button></div><div class="route-detail" id="detail-${esc(route.id)}" ${opened?'':'hidden'}>${opened?detailMarkup(route):''}</div></article>`;
   }).join('');
 }
 
@@ -378,7 +394,9 @@ function toggleDetail(id) {
   const route=getRoute(id);if(!route)return;
   if(state.expanded.has(id))state.expanded.delete(id);else state.expanded.add(id);
   const opened=state.expanded.has(id),element=$('detail-'+id);
+  element.getAnimations().forEach(animation=>animation.cancel());
   element.hidden=!opened; element.innerHTML=opened?detailMarkup(route):'';
+  if(opened)revealSurface(element);
   const button=document.querySelector(`[data-detail="${id}"]`);
   button.setAttribute('aria-expanded',String(opened));button.textContent=opened?'收起详情':'展开详情';
 }
@@ -410,7 +428,7 @@ $('search-form').addEventListener('change',markDirty);
 $('date').addEventListener('change',()=>{if($('date').value){$('latest').value=addDays($('date').value,1)+'T18:00';markDirty();}});
 $('swap').addEventListener('click',()=>{const value=$('origin').value;$('origin').value=$('destination').value;$('destination').value=value;markDirty();});
 document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{mode(button.dataset.mode);markDirty();}));
-$('preferences').addEventListener('toggle',()=>{$('preferences').querySelector('.disclosure').textContent=$('preferences').open?'收起':'展开';});
+$('preferences').addEventListener('toggle',()=>{if($('preferences').open)revealSurface($('preferences').querySelector('.advanced'));$('preferences').querySelector('.disclosure').textContent=$('preferences').open?'收起':'展开';});
 $('sort').addEventListener('change',renderList);
 $('cancel-button').addEventListener('click',()=>{cancelSearch();updateProgress($('progress').value,'已停止查询');});
 $('retry-button').addEventListener('click',()=>search());
@@ -442,3 +460,50 @@ window.addEventListener('popstate',event=>{
   goStep(Math.max(1,Math.min(4,step)),{fromHistory:true});
 });
 init();
+
+
+// Shared scenery parallax plus a larger train-only travel along the rail tangent.
+(() => {
+  const train=document.querySelector('.scene-train-carriage');
+  const scene=document.querySelector('.sketch-scene');
+  const canvas=scene.querySelector('.scene-canvas');
+  Promise.allSettled([...scene.querySelectorAll('img')].map(img=>img.decode())).then(()=>scene.classList.add('is-ready'));
+  const reduce=matchMedia('(prefers-reduced-motion: reduce)');
+  const fine=matchMedia('(hover: hover) and (pointer: fine)');
+  const current={x:0,y:0,rail:0},target={x:0,y:0,rail:0};
+  let frame=0,lastTime=0;
+  const paint=()=>{
+    canvas.style.transform=`translateX(-50%) translate3d(${current.x.toFixed(3)}px,${current.y.toFixed(3)}px,0) scale(1.02)`;
+    train.style.transform=`translate3d(${current.rail.toFixed(3)}px,${(-current.rail*.2).toFixed(3)}px,0)`;
+  };
+  const tick=time=>{
+    frame=0;
+    const dt=lastTime?Math.min(50,time-lastTime):16;lastTime=time;
+    const blend=1-Math.exp(-dt/105);
+    let moving=false;
+    for(const key of ['x','y','rail']){
+      current[key]+=(target[key]-current[key])*blend;
+      if(Math.abs(target[key]-current[key])<.02)current[key]=target[key];else moving=true;
+    }
+    paint();
+    if(moving)frame=requestAnimationFrame(tick);else lastTime=0;
+  };
+  const reset=()=>{
+    cancelAnimationFrame(frame);frame=0;lastTime=0;
+    for(const key of ['x','y','rail'])current[key]=target[key]=0;
+    paint();
+  };
+  window.addEventListener('pointermove',event=>{
+    if(reduce.matches || !fine.matches || event.pointerType!=='mouse' || document.querySelector('dialog[open]'))return;
+    const nx=Math.max(-1,Math.min(1,event.clientX/innerWidth*2-1));
+    const ny=Math.max(-1,Math.min(1,event.clientY/innerHeight*2-1));
+    target.x=nx*4;target.y=ny*2;
+    target.rail=Math.max(-8,Math.min(8,(nx-.2*ny)/1.2*8));
+    if(!frame)frame=requestAnimationFrame(tick);
+  },{passive:true});
+  window.addEventListener('pointerout',event=>{if(!event.relatedTarget)reset();});
+  window.addEventListener('blur',reset);
+  window.addEventListener('resize',reset);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)reset();});
+  reduce.addEventListener('change',reset);fine.addEventListener('change',reset);
+})();
