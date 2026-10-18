@@ -188,6 +188,18 @@ class SearchIntegration(unittest.TestCase):
         self.assertEqual(result['routes'][0]['wait'],50)
         self.assertEqual(result['highlights']['sleeper'],result['routes'][0]['id'])
 
+    def test_progress_events_describe_real_hubs_and_pricing_candidates(self):
+        events = []
+        def progress(message, percent):
+            pass
+        progress.event = events.append
+        self.planner.search(self.options, progress)
+        self.assertTrue(any(event['type'] == 'hub' for event in events))
+        routes = [event['stops'] for event in events if event['type'] == 'verify']
+        self.assertTrue(routes)
+        self.assertTrue(all(len(stops) in (2, 4) for stops in routes))
+        self.assertTrue(all(stops[0] == self.a.from_code for stops in routes))
+
     def test_exact_station_autocomplete_remains_exact(self):
         result=self.planner.search(replace(self.options,via='桂林北站'))
         self.assertEqual(len(result['routes']),1)

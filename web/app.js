@@ -58,6 +58,7 @@ function restore(payload) {
   [['allow_cross_station','cross'],['include_unavailable','unavailable']].forEach(([key,id]) => {
     if (typeof payload[key] === 'boolean') $(id).checked = payload[key];
   });
+  window.dispatchEvent(new Event('rail:places'));
 }
 
 function readHistory() {
@@ -228,7 +229,9 @@ function goStep(step,{replace=false,skipValidation=false,fromHistory=false}={}) 
   state.step=step;
   document.querySelectorAll('.step-page').forEach((page,index)=>page.hidden=index+1!==step);
   document.querySelector('.wizard').classList.toggle('show-results',step===4);
+  document.querySelector('.wizard').classList.toggle('show-trip',step===1);
   syncNavigation();
+  window.dispatchEvent(new CustomEvent('rail:step',{detail:{step}}));
   if(!fromHistory)writeAddress(replace);
   window.scrollTo({top:0,behavior:'instant'});
   const heading=$('step-'+step).querySelector('h1');
@@ -239,11 +242,7 @@ function updateProgress(percent,message) {
   $('progress').value=percent;
   $('progress-percent').textContent=percent+'%';
   $('progress-message').textContent=message;
-  const stage=percent<18?0:percent<60?1:2;
-  document.querySelectorAll('.query-stages li').forEach((li,index)=>{
-    li.classList.toggle('complete',state.phase==='complete'||index<stage);
-    li.classList.toggle('current',state.busy && index===stage);
-  });
+
 }
 
 function updateProgressState() {
@@ -251,11 +250,7 @@ function updateProgressState() {
   $('cancel-button').hidden=!state.busy;
   $('retry-button').hidden=!['error','cancelled','stale'].includes(state.phase);
   $('view-results').hidden=!state.result;
-  $('progress-note').textContent=state.phase==='complete'
-    ? `用时 ${state.result.elapsed_seconds} 秒。可返回查看本次条件。`
-    : state.phase==='stale'?'原查询结果已失效，请按新条件重新查询。'
-    : state.phase==='cancelled'?'已保留填写的条件，可修改后重新查询。'
-    : '按实际乘车日期查询余票与票价。';
+  window.dispatchEvent(new CustomEvent('rail:query-state',{detail:{phase:state.phase}}));
   syncNavigation();
 }
 
@@ -270,6 +265,7 @@ function cancelSearch() {
 }
 
 function markDirty() {
+  window.dispatchEvent(new Event('rail:places'));
   updateSummaries();
   if(!state.payload || JSON.stringify(collect())===JSON.stringify(state.payload))return;
   if(state.busy)cancelSearch();
@@ -318,6 +314,7 @@ async function search(event) {
   const generation=++state.generation;
   state.payload=payload;state.result=null;state.selected.clear();state.expanded.clear();
   state.busy=true;state.phase='running';state.job=null;
+  window.dispatchEvent(new CustomEvent('rail:query-reset',{detail:{origin:payload.origin,destination:payload.destination}}));
   updateCompare();updateProgress(0,'准备查询');updateProgressState();
   goStep(3);saveHistory(payload);
   try {
@@ -333,6 +330,7 @@ async function poll(id,generation) {
   const job=await api('/api/search/'+encodeURIComponent(id));
   if(generation!==state.generation)return;
   updateProgress(job.progress,job.message);
+  window.dispatchEvent(new CustomEvent('rail:query-events',{detail:{events:job.events || []}}));
   if(job.status==='running') {
     state.polling=setTimeout(()=>poll(id,generation).catch(error=>{
       if(generation===state.generation)failSearch(error);

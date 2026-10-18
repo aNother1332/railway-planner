@@ -42,11 +42,18 @@ class Application:
                     del self.jobs[key]
             job_id = secrets.token_urlsafe(18)
             job = {'id': job_id, 'status': 'running', 'message': '准备查询', 'progress': 0,
-                   'created': time.monotonic(), '_cancel': threading.Event()}
+                   'events': [], 'created': time.monotonic(), '_cancel': threading.Event()}
             self.jobs[job_id] = job
         def progress(message, percent):
             with self.lock:
                 job.update(message=message, progress=percent)
+        def map_event(event):
+            # Retain sequenced events so polling cannot skip fast hub changes.
+            with self.lock:
+                sequence = job.get('_event_sequence', 0) + 1
+                job['_event_sequence'] = sequence
+                job['events'] = (job['events'] + [dict(event, sequence=sequence)])[-256:]
+        progress.event = map_event
         def run():
             try:
                 result = self.planner.search(options, progress, job['_cancel'])
@@ -98,7 +105,10 @@ class Handler(BaseHTTPRequestHandler):
         if url.path.startswith('/api/search/'):
             result = self.app.snapshot(url.path.rsplit('/', 1)[-1])
             return self.send_json(result if result else {'error': '查询已过期，请重新查询。'}, 200 if result else 404)
-        files = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/favicon.svg': 'favicon.svg'}
+        files = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css', '/favicon.svg': 'favicon.svg',
+                 '/map.js':'map.js', '/map.css':'map.css', '/vendor/d3.min.js':'vendor/d3.min.js'}
+        for asset in ('provinces','regions','cities','stations','coverage'):
+            files[f'/map-data/{asset}.json'] = f'map-data/{asset}.json'
         name = files.get(url.path)
         if not name:
             return self.send_json({'error': '未找到页面'}, 404)

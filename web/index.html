@@ -8,7 +8,10 @@
   <title>转个弯 · 火车中转规划</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/map.css">
   <script src="/app.js" defer></script>
+  <script src="/vendor/d3.min.js" defer></script>
+  <script src="/map.js" defer></script>
 </head>
 <body>
   <header class="site-header"><button type="button" class="brand" data-step="1">转个弯</button><button type="button" class="text-button" id="history-btn">最近查询</button></header>
@@ -22,12 +25,13 @@
     <form id="search-form" novalidate>
       <section class="step-page" id="step-1" aria-labelledby="trip-heading">
         <div class="page-heading"><h1 id="trip-heading" tabindex="-1">欢迎，开始规划行程</h1><p>选择出发地、目的地和出发日期。</p></div>
-        <div class="station-row">
+        <div class="trip-layout"><div class="trip-fields"><div class="station-row">
           <div class="field autocomplete"><label for="origin">出发地</label><input id="origin" name="origin" required placeholder="城市或车站" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="origin-list" aria-expanded="false"><ul class="suggestions" id="origin-list" role="listbox" hidden></ul></div>
           <button class="swap-button" type="button" id="swap" aria-label="交换出发地和目的地">⇄</button>
           <div class="field autocomplete"><label for="destination">目的地</label><input id="destination" name="destination" required placeholder="城市或车站" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="destination-list" aria-expanded="false"><ul class="suggestions" id="destination-list" role="listbox" hidden></ul></div>
         </div>
         <div class="field"><label for="date">出发日期</label><input id="date" name="date" type="date" required></div>
+        </div><button type="button" id="open-map" class="map-preview" aria-haspopup="dialog" aria-controls="map-dialog"><svg id="map-preview-svg" viewBox="0 0 600 400" aria-hidden="true"></svg><span class="map-preview-caption"><strong>地图选点</strong><span id="map-preview-summary">选择城市或具体车站</span><span class="map-preview-open">打开地图 ↗</span></span></button></div>
         <p class="error-message" id="trip-error" role="alert" hidden></p>
         <div class="page-actions"><button type="button" class="primary-button" id="next-preferences">下一步：选择偏好</button></div>
       </section>
@@ -67,8 +71,8 @@
     <section class="step-page" id="step-3" aria-labelledby="progress-heading" hidden>
       <div class="page-heading"><h1 id="progress-heading" tabindex="-1">正在寻找路线</h1></div>
       <div class="trip-summary"><span data-search-summary></span></div>
-      <div id="loading" class="progress-content" role="status"><div class="progress-label"><strong id="progress-message">准备查询</strong><span id="progress-percent">0%</span></div><progress id="progress" max="100" value="0"></progress><ol class="query-stages"><li>查询列车</li><li>组合路线</li><li>核验票价</li></ol></div>
-      <p id="progress-note" class="muted">按实际乘车日期查询余票与票价。</p>
+      <div id="loading" class="progress-content" role="status"><div class="progress-label"><strong id="progress-message">准备查询</strong><span id="progress-percent">0%</span></div><progress id="progress" max="100" value="0"></progress></div>
+      <div class="query-map-wrap"><svg id="query-map" viewBox="0 0 800 440" role="img" aria-label="路线搜索进度地图，圆点表示查询地点，箭头表示正在核价的候选区间"></svg><p id="query-map-fallback" class="muted" hidden>地图暂不可用，查询仍在继续。</p><span class="query-map-attribution">© OpenStreetMap · 示意连线</span></div>
       <p id="progress-error" class="error-message" role="alert" hidden></p>
       <div class="page-actions"><button type="button" class="secondary-button" data-step="2">返回偏好</button><button type="button" class="text-button" id="cancel-button">停止查询</button><button type="button" class="primary-button" id="retry-button" hidden>重新查询</button><button type="button" class="primary-button" id="view-results" data-step="4" hidden>查看路线</button></div>
     </section>
@@ -86,6 +90,12 @@
   <div id="compare-bar" class="compare-bar" hidden><span>已选 <b id="compare-count">0</b> 条路线</span><button class="text-button" id="clear-compare">清空</button><button class="primary-button" id="open-compare">对比路线</button></div>
   <dialog id="detail-dialog"><div class="dialog-heading"><h2 id="dialog-title">路线对比</h2><button type="button" class="icon-button close-dialog" aria-label="关闭">×</button></div><div id="dialog-content"></div></dialog>
   <dialog id="history-dialog"><div class="dialog-heading"><h2>最近查询</h2><button type="button" class="icon-button close-dialog" aria-label="关闭">×</button></div><p class="muted">仅保存在这台设备。恢复条件后需重新查询。</p><div id="history-list"></div><button class="text-button" id="clear-history">清除记录</button></dialog>
+  <dialog id="map-dialog" aria-labelledby="map-title">
+    <header class="map-header"><h2 id="map-title">地图选点</h2><div class="map-targets" role="group" aria-label="正在选择的地点"><button type="button" data-map-target="origin" aria-pressed="true">出发地 <span id="map-origin-value">未选择</span></button><button type="button" class="map-clear" data-map-clear="origin" aria-label="清除出发地">清除</button><span aria-hidden="true">→</span><button type="button" data-map-target="destination" aria-pressed="false">目的地 <span id="map-destination-value">未选择</span></button><button type="button" class="map-clear" data-map-clear="destination" aria-label="清除目的地">清除</button></div><button type="button" class="icon-button" id="close-map" aria-label="关闭地图">×</button></header>
+    <div class="map-body"><div class="map-canvas-wrap"><svg id="rail-map" role="group" aria-label="中国城市与火车站地图，可使用缩放按钮或方向键移动" tabindex="0"></svg><div class="map-controls" role="group" aria-label="地图视图"><button type="button" id="map-zoom-in" aria-label="放大地图">＋</button><button type="button" id="map-zoom-out" aria-label="缩小地图">−</button><button type="button" id="map-home">全国</button><button type="button" id="map-fit-route">两地</button></div><p id="map-status" class="map-status" role="status">正在载入本地地图…</p><div class="map-attribution"><span>城市边界 OSM · 获取于 2026-10-18</span><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors · ODbL</a></div></div>
+    <aside class="map-panel" aria-label="选择城市或车站"><div class="map-search"><label for="map-search">查找城市或车站</label><input id="map-search" type="search" placeholder="例如：苏州、昆山南" autocomplete="off"><div id="map-search-results" class="map-search-results"></div></div><div id="map-place-panel"><h3>选择出发地</h3><p>点击城市，查看本市和附近车站。</p></div><div id="map-station-list"></div><details class="map-data-note"><summary>地图数据与覆盖</summary><p id="map-coverage"></p><p>未匹配坐标的车站仍可在主界面输入。箭头表示两地位置关系。行政边界为历史简化资料，不用于精确判断边界。</p></details></aside></div>
+    <footer class="map-footer"><span id="map-selection-summary" aria-live="polite">请选择出发地和目的地</span><button type="button" class="primary-button" id="map-done">完成选择</button></footer>
+  </dialog>
   <div id="toast" role="status" hidden></div>
 </body>
 </html>

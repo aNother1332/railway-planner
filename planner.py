@@ -258,6 +258,8 @@ class Planner:
                     break
                 searched.append({'city': self.stations.city(a), 'arrival_station': self.stations.name(a), 'departure_station': self.stations.name(b)})
                 count_before = len(rough)
+                # Optional structured observer keeps ordinary two-argument callbacks compatible.
+                getattr(progress, 'event', lambda event: None)({'type': 'hub', 'station': a, 'city': self.stations.city(a)})
                 progress(f'正在组合经 {self.stations.name(a)} 的路线', 18 + int(index / max(1, len(pair_list)) * 37))
                 for date in dates:
                     firsts = [s for s in tickets(origin, exact(a), date) if options.earliest <= s.depart < options.earliest + timedelta(days=options.depart_days) and s.arrive < options.latest]
@@ -319,6 +321,7 @@ class Planner:
         checked = set()
         try:
             for index, (legs, _, _) in enumerate(selected):
+                getattr(progress, 'event', lambda event: None)({'type': 'verify', 'stops': [code for leg in legs for code in (leg.from_code, leg.to_code)]})
                 progress(f'正在核验票价 {index + 1}/{len(selected)}', 60 + int(index / max(1, len(selected)) * 33))
                 for segment in legs:
                     if segment.key not in checked:
