@@ -1,0 +1,57 @@
+{
+  "canvas": [
+    1536,
+    1024
+  ],
+  "asset": "harmony-train-straight.png",
+  "scale": 0.33,
+  "rotationDegrees": -10.753229868613438,
+  "translation": [
+    78.84911796780534,
+    118.9974552952749
+  ],
+  "track": {
+    "slope": -0.2,
+    "intercept": 840,
+    "straightRange": [
+      590,
+      1130
+    ]
+  },
+  "wheelContacts": [
+    [
+      230,
+      635
+    ],
+    [
+      474,
+      637
+    ],
+    [
+      600,
+      632
+    ],
+    [
+      785,
+      631
+    ],
+    [
+      950,
+      627
+    ],
+    [
+      1105,
+      628
+    ],
+    [
+      1270,
+      626
+    ],
+    [
+      1465,
+      623
+    ]
+  ],
+  "relativeTravel": 8,
+  "cssTransform": "translate(5.133406118%,11.620845244%) rotate(-10.753229869deg) scale(0.33)"
+}
