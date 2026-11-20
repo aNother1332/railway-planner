@@ -78,6 +78,7 @@ class Application:
 
 class Handler(BaseHTTPRequestHandler):
     app: Application
+    allowed_origin = None
 
     def log_message(self, fmt, *args):
         # No query payloads or personal data in access logs.
@@ -90,8 +91,28 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')
+        if self.allowed_origin:
+            self.send_header('Vary', 'Origin')
+            if self.headers.get('Origin') == self.allowed_origin:
+                self.send_header('Access-Control-Allow-Origin', self.allowed_origin)
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        path = urllib.parse.urlparse(self.path).path
+        if not self.allowed_origin or self.headers.get('Origin') != self.allowed_origin:
+            return self.send_json({'error': '不接受跨站请求。'}, 403)
+        if path != '/api/search' and not path.startswith('/api/cancel/'):
+            return self.send_json({'error': '未知接口。'}, 404)
+        if self.headers.get('Access-Control-Request-Method') != 'POST':
+            return self.send_json({'error': '不支持此方法。'}, 405)
+        self.send_response(204)
+        self.send_header('Vary', 'Origin, Access-Control-Request-Method, Access-Control-Request-Headers')
+        self.send_header('Access-Control-Allow-Origin', self.allowed_origin)
+        self.send_header('Access-Control-Allow-Methods', 'POST')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Max-Age', '600')
+        self.end_headers()
 
     def do_GET(self):
         url = urllib.parse.urlparse(self.path)
@@ -125,7 +146,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         origin = self.headers.get('Origin')
-        if origin and urllib.parse.urlparse(origin).netloc != self.headers.get('Host'):
+        if origin and origin != self.allowed_origin and urllib.parse.urlparse(origin).netloc != self.headers.get('Host'):
             return self.send_json({'error': '不接受跨站请求。'}, 403)
         try:
             length = int(self.headers.get('Content-Length', '0'))
@@ -154,7 +175,13 @@ def main():
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=8765)
     parser.add_argument('--open-browser', action='store_true')
+    parser.add_argument('--allow-origin', help='Exact HTTPS origin of a separately hosted frontend')
     args = parser.parse_args()
+    if args.allow_origin:
+        origin = urllib.parse.urlsplit(args.allow_origin)
+        if origin.scheme != 'https' or not origin.hostname or args.allow_origin != f'https://{origin.netloc}' or origin.username is not None:
+            parser.error('--allow-origin must be a single HTTPS origin without a path')
+    Handler.allowed_origin = args.allow_origin
     Handler.app = Application()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f'Railway Planner ready: http://{args.host}:{args.port}', flush=True)

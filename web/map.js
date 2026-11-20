@@ -16,7 +16,7 @@
     if(M.data)return M.data;
     if(M.loading)return M.loading;
     M.loading=Promise.all(['provinces','regions','cities','stations','coverage'].map(async name=>{
-      const r=await fetch('/map-data/'+name+'.json');
+      const r=await fetch('./map-data/'+name+'.json');
       if(!r.ok)throw new Error('本地地图文件读取失败');
       return r.json();
     })).then(([provinces,regions,cities,stations,coverage])=>{

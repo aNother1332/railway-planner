@@ -1,0 +1,19 @@
+[Unit]
+Description=Railway Planner query API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+DynamicUser=yes
+WorkingDirectory=/opt/another1332-railway/current
+ExecStart=/usr/bin/python3 -B app.py --host 127.0.0.1 --port 8797 --allow-origin https://another1332.github.io
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+MemoryMax=256M
+TasksMax=40
+
+[Install]
+WantedBy=multi-user.target

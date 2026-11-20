@@ -9,6 +9,9 @@ const state = {step:1,phase:'idle',ready:false,busy:false,result:null,selected:n
 let config;
 let toastTimer;
 let keyboardInput=false;
+const apiBase = location.hostname === 'another1332.github.io'
+  ? new URL('https://another1332.me/railway-planner/')
+  : new URL('./', location.href);
 document.addEventListener('keydown',()=>{keyboardInput=true;},true);
 document.addEventListener('pointerdown',()=>{keyboardInput=false;},true);
 function revealSurface(element) {
@@ -24,8 +27,10 @@ function toast(message) {
 }
 
 async function api(path, options={}) {
-  const response = await fetch(path, {headers:{'Content-Type':'application/json'}, ...options});
-  const data = await response.json();
+  const headers = options.body ? {'Content-Type':'application/json'} : {};
+  const response = await fetch(new URL(path.slice(1), apiBase), {...options, headers});
+  const data = await response.json().catch(() => null);
+  if (!data) throw new Error(response.status===429 ? '查询较多，请稍后再试。' : '查询服务暂不可用，请稍后再试。');
   if (!response.ok) throw new Error(data.error || '请求没有成功，请稍后再试。');
   return data;
 }
@@ -416,7 +421,7 @@ async function init() {
     if(shared){try{restore(JSON.parse(shared));}catch{toast('分享条件无效，已恢复默认设置');}}
     state.ready=true;$('next-preferences').disabled=false;
     goStep(1,{replace:true,skipValidation:true});
-  }catch(error){$('trip-error').textContent='无法连接本地服务，请刷新重试。';$('trip-error').hidden=false;}
+  }catch(error){$('trip-error').textContent='无法连接查询服务，请刷新重试。';$('trip-error').hidden=false;}
 }
 
 document.querySelectorAll('[data-step]').forEach(button=>button.addEventListener('click',()=>goStep(Number(button.dataset.step))));
